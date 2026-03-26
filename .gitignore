@@ -7,3 +7,4 @@ docs/
 diagrams/
 run-history.jsonl
 *.log
+extensions/*/node_modules/
