@@ -1,0 +1,19 @@
+{
+  "lastChangelogVersion": "0.62.0",
+  "enableSkillCommands": true,
+  "packages": [
+    {
+      "source": "https://github.com/nicobailon/visual-explainer",
+      "skills": [
+        "SKILL.md"
+      ]
+    },
+    "https://github.com/nicobailon/pi-boomerang",
+    "npm:pi-subagents",
+    "npm:pi-web-access"
+  ],
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-opus-4-6",
+  "hideThinkingBlock": false,
+  "defaultThinkingLevel": "high"
+}

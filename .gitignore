@@ -1,0 +1,9 @@
+auth.json
+sessions/
+deepwiki/
+git/
+bin/
+docs/
+diagrams/
+run-history.jsonl
+*.log

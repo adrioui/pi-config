@@ -1,0 +1,12 @@
+---
+description: Analyze blast radius of current changes across services
+---
+Analyze the blast radius of current changes. Load the `btj-test-impact` skill if available.
+
+1. List all changed files (git diff --name-only HEAD).
+2. Map each file to its owning service.
+3. If `src/custom_lib/py/bliv_lib/` changed, trace ALL importing services.
+4. For each affected service, list the specific test commands to run.
+5. Flag any cross-service risks.
+
+Output a clear impact report with exact verification commands.
