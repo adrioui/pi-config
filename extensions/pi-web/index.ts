@@ -1066,7 +1066,7 @@ export default function (pi: ExtensionAPI) {
 				description: "Number of frames to extract. Use with timestamp range for custom density, with single timestamp to get N frames at 5s intervals, or alone to sample across the entire video. Requires yt-dlp + ffmpeg for YouTube, ffmpeg for local video.",
 			})),
 			model: Type.Optional(Type.String({
-				description: "Override the Gemini model for video/YouTube analysis (e.g. 'gemini-2.5-flash', 'gemini-3-flash-preview'). Defaults to config or gemini-3-flash-preview.",
+				description: "Override the model for video/YouTube analysis. Defaults to claude-haiku-4-5.",
 			})),
 		}),
 

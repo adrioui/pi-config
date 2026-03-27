@@ -8,7 +8,7 @@ import { extractRSCContent } from "./rsc-extract.js";
 import { extractPDFToMarkdown, isPDF } from "./pdf-extract.js";
 import { extractGitHub } from "./github-extract.js";
 import { isYouTubeURL, isYouTubeEnabled, extractYouTube, extractYouTubeFrame, extractYouTubeFrames, getYouTubeStreamInfo } from "./youtube-extract.js";
-import { extractWithUrlContext, extractWithGeminiWeb } from "./gemini-url-context.js";
+
 import { isVideoFile, extractVideo, extractVideoFrame, getLocalVideoDuration } from "./video-extract.js";
 import { fetchWithAnthropicWeb, isAnthropicWebAvailable } from "./anthropic-web.js";
 import { formatSeconds } from "./utils.js";
@@ -344,7 +344,7 @@ export async function extractContent(
 	const videoInfo = isVideoFile(url);
 	if (videoInfo) {
 		const result = await extractVideo(videoInfo, signal, options);
-		return result ?? { url, title: "", content: "", error: "Video analysis requires Gemini access. Either:\n  1. Sign into gemini.google.com in Chrome (free, uses cookies)\n  2. Set GEMINI_API_KEY in ~/.pi/web-search.json" };
+		return result ?? { url, title: "", content: "", error: "Video analysis requires ANTHROPIC_API_KEY. Set it in env or ~/.pi/web-search.json." };
 	}
 
 	try {
@@ -368,7 +368,7 @@ export async function extractContent(
 			url,
 			title: "",
 			content: "",
-			error: "Could not extract YouTube video content. Sign into Google in Chrome for automatic access, or set GEMINI_API_KEY.",
+			error: "Could not extract YouTube video content. Set ANTHROPIC_API_KEY for Claude-based extraction, or ensure yt-dlp + ffmpeg are installed.",
 		};
 	}
 
@@ -383,20 +383,13 @@ export async function extractContent(
 	const jinaResult = await extractWithJinaReader(url, signal);
 	if (jinaResult) return jinaResult;
 
-	const geminiResult = await extractWithUrlContext(url, signal)
-		?? await extractWithGeminiWeb(url, signal);
-
-	if (geminiResult) return geminiResult;
-
 	const guidance = [
 		httpResult.error,
 		"",
 		"Fallback options:",
 		...(isAnthropicWebAvailable()
 			? ["  • Anthropic web_fetch fallback was attempted but did not succeed"]
-			: ["  • Set ANTHROPIC_API_KEY in ~/.pi/web-search.json for Claude-style web_fetch fallback"]),
-		"  • Set GEMINI_API_KEY in ~/.pi/web-search.json",
-		"  • Sign into gemini.google.com in Chrome",
+			: ["  • Set ANTHROPIC_API_KEY for Claude-style web_fetch fallback"]),
 		"  • Use web_search to find content about this topic",
 	].join("\n");
 	return { ...httpResult, error: guidance };
