@@ -3,6 +3,10 @@ description: Validate Alembic migration safety for current changes
 ---
 Check all Alembic migration files in the current diff for safety. Load the `btj-migration-safety` skill.
 
+Arguments: $@
+
+Special case: if the arguments explicitly ask for a pi-web capability check, do that first with `web_search`, `fetch_content`, or `code_search`, then return the result without running the full migration review.
+
 Migration files are at `src/<service>/migrations/versions/*.py` (NOT alembic/versions/).
 
 Validate:
@@ -17,3 +21,5 @@ Validate:
 Migration run command: `cd src/<service> && python main.py migrate`
 
 Report: safe/has-risks/unsafe with specific findings.
+
+Default to local migration files and repository evidence. If the user explicitly asks for external docs, framework behavior, or a pi-web capability check, use `web_search`, `fetch_content`, or `code_search` to support the review.

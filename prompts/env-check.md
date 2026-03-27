@@ -1,9 +1,15 @@
 ---
 description: Validate local environment setup for current worktree services
 ---
-Check the local development environment for the current worktree:
+Check the local development environment for the current worktree.
 
-1. Check mise config: `cat .mise.toml` and `cat .mise.local.toml` (worktree-specific ports).
+Arguments: $@
+
+Special case: if the arguments explicitly ask for a pi-web capability check, do that first with `web_search`, `fetch_content`, or `code_search`, then return the result without running the full environment checklist.
+
+Checklist:
+
+1. Check mise config: read `.mise.toml` and `.mise.local.toml` (worktree-specific ports).
 2. Check if shared infrastructure is running: `docker compose -p bliv-infra -f docker-compose.infra.yml ps`.
 3. Check if worktree services are running: `process-compose status` or `mise up` state.
 4. Validate `config/local.env` files exist for active services (backend, backend_data_house, backend_virtualization).
@@ -16,3 +22,5 @@ Key commands:
 - `mise infra-up` — start shared infra only (Keycloak, Trino, NiFi, MinIO)
 
 Report: ready / needs-setup with specific fix commands.
+
+Use local evidence first. If the user explicitly asks for external docs, dependency behavior, or a pi-web capability check, use `web_search`, `fetch_content`, or `code_search` as needed.
