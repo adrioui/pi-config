@@ -34,7 +34,7 @@ Before doing anything, classify the request to pick the right research strategy.
 
 Batch these in one turn:
 
-1. **web_search**: `"library-name topic"` via Perplexity for recent articles and discussions
+1. **web_search**: `"library-name topic"` for recent articles and discussions (Exa AI or Anthropic fallback)
 2. **fetch_content**: the library's GitHub repo URL to clone and check README, docs, or examples
 
 Synthesize web results + repo docs. Cite official documentation and link to relevant source files.
@@ -182,9 +182,9 @@ The `prompt` parameter only applies to video content (YouTube URLs and local vid
 | Repo too large to clone | fetch_content returns an API-only view automatically; use that or add `forceClone: true` |
 | File not found in clone | Branch name with slashes may have misresolved; list the repo tree and navigate manually |
 | Uncertain about implementation | State your uncertainty explicitly, propose a hypothesis, show what evidence you did find |
-| Video extraction fails | Ensure Chrome is signed into gemini.google.com (free) or set GEMINI_API_KEY |
-| Page returns 403/bot block | Gemini fallback triggers automatically; no action needed if Gemini is configured |
-| web_search fails | Check provider config; try explicit `provider: "gemini"` if Perplexity key is missing |
+| Video extraction fails | Ensure `ANTHROPIC_API_KEY` is set; video extraction uses Anthropic-based tools when available |
+| Page returns 403/bot block | Anthropic `web_fetch` + Jina Reader fallback triggers automatically; ensure `ANTHROPIC_API_KEY` is set |
+| web_search fails | Check provider config; ensure `EXA_API_KEY` (primary) or `ANTHROPIC_API_KEY` (fallback) is set |
 
 ## Guidelines
 

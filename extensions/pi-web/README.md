@@ -73,8 +73,9 @@ This extension is a fork of `pi-web-access@0.10.3` with the following enhancemen
 
 ### Notes
 
-- `web_search` no longer uses Perplexity or Gemini.
-- Some `fetch_content` features may still use Gemini-based paths for video and URL-context extraction. Those were left intact because they are unrelated to the web-search provider chain.
+- `web_search` uses Exa AI first, then Anthropic web search as fallback.
+- `fetch_content` falls back to Anthropic `web_fetch` + Jina Reader for pages that block normal extraction or return bot-challenge responses.
+- Video extraction (YouTube and local video files) uses Anthropic-based tools when available.
 - Anthropic web search requires org-level enablement in Anthropic Console privacy settings.
 
 ## Installation
