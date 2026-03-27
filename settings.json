@@ -11,6 +11,9 @@
     "https://github.com/nicobailon/pi-boomerang",
     "npm:pi-subagents"
   ],
+  "skills": [
+    "./extensions/pi-web/skills"
+  ],
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-4-6",
   "hideThinkingBlock": false,
