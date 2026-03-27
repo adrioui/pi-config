@@ -1,15 +1,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { resolve, extname, basename, join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { activityMonitor } from "./activity.js";
-import { isGeminiWebAvailable, queryWithCookies } from "./gemini-web.js";
-import { queryGeminiApiWithVideo, getApiKey, API_BASE } from "./gemini-api.js";
-import { extractHeadingTitle, type ExtractedContent, type ExtractOptions, type FrameResult } from "./extract.js";
-import { readExecError, trimErrorText, mapFfmpegError } from "./utils.js";
+import { isAnthropicWebAvailable } from "./anthropic-web.js";
+import { extractHeadingTitle, type ExtractedContent, type ExtractOptions, type FrameResult, type VideoFrame } from "./extract.js";
+import { readExecError, trimErrorText, mapFfmpegError, formatSeconds } from "./utils.js";
 
 const CONFIG_PATH = join(homedir(), ".pi", "web-search.json");
-const UPLOAD_BASE = "https://generativelanguage.googleapis.com/upload/v1beta";
 
 const DEFAULT_VIDEO_PROMPT = `Extract the complete content of this video. Include:
 1. Video title (infer from content if not explicit), duration
@@ -46,7 +43,7 @@ interface VideoConfig {
 
 const VIDEO_CONFIG_DEFAULTS: VideoConfig = {
 	enabled: true,
-	preferredModel: "gemini-3-flash-preview",
+	preferredModel: "claude-haiku-4-5",
 	maxSizeMB: 50,
 };
 
@@ -123,12 +120,10 @@ export async function extractVideo(
 ): Promise<ExtractedContent | null> {
 	const config = loadVideoConfig();
 	const effectivePrompt = options?.prompt ?? DEFAULT_VIDEO_PROMPT;
-	const effectiveModel = options?.model ?? config.preferredModel;
 	const displayName = basename(info.absolutePath);
 	const activityId = activityMonitor.logStart({ type: "fetch", url: `video:${displayName}` });
 
-	const result = await tryVideoGeminiApi(info, effectivePrompt, effectiveModel, signal)
-		?? await tryVideoGeminiWeb(info, effectivePrompt, effectiveModel, signal);
+	const result = await tryAnthropicVideoFrames(info, effectivePrompt, signal);
 
 	if (result) {
 		const thumbnail = await extractVideoFrame(info.absolutePath);
@@ -139,7 +134,7 @@ export async function extractVideo(
 		return result;
 	}
 
-	activityMonitor.logError(activityId, "all video extraction paths failed");
+	activityMonitor.logError(activityId, "video extraction failed");
 	return null;
 }
 
@@ -181,148 +176,87 @@ export async function getLocalVideoDuration(filePath: string): Promise<number | 
 	}
 }
 
-async function tryVideoGeminiWeb(
-	info: VideoFileInfo,
+async function queryAnthropicWithFrames(
 	prompt: string,
-	model: string,
+	frames: VideoFrame[],
 	signal?: AbortSignal,
-): Promise<ExtractedContent | null> {
-	try {
-		const cookies = await isGeminiWebAvailable();
-		if (!cookies) return null;
-		if (signal?.aborted) return null;
-
-		const text = await queryWithCookies(prompt, cookies, {
-			files: [info.absolutePath],
-			model,
-			signal,
-			timeoutMs: 180000,
-		});
-
-		return {
-			url: info.absolutePath,
-			title: extractVideoTitle(text, info.absolutePath),
-			content: text,
-			error: null,
-		};
-	} catch {
-		return null;
-	}
-}
-
-async function tryVideoGeminiApi(
-	info: VideoFileInfo,
-	prompt: string,
-	model: string,
-	signal?: AbortSignal,
-): Promise<ExtractedContent | null> {
-	const apiKey = getApiKey();
+): Promise<string | null> {
+	const apiKey = process.env.ANTHROPIC_API_KEY
+		|| (() => { try { return JSON.parse(readFileSync(CONFIG_PATH, "utf-8")).anthropicApiKey; } catch { return null; } })();
 	if (!apiKey) return null;
-	if (signal?.aborted) return null;
 
-	let fileName: string | null = null;
-	try {
-		const uploaded = await uploadToFilesApi(info, apiKey, signal);
-		fileName = uploaded.name;
-
-		await pollFileState(fileName, apiKey, signal, 120000);
-
-		const text = await queryGeminiApiWithVideo(prompt, uploaded.uri, {
-			model,
-			mimeType: info.mimeType,
-			signal,
-			timeoutMs: 120000,
+	const content: Array<Record<string, unknown>> = [];
+	for (const frame of frames) {
+		content.push({ type: "text", text: `Frame at ${frame.timestamp}:` });
+		content.push({
+			type: "image",
+			source: { type: "base64", media_type: frame.mimeType, data: frame.data },
 		});
+	}
+	content.push({ type: "text", text: prompt });
 
-		return {
-			url: info.absolutePath,
-			title: extractVideoTitle(text, info.absolutePath),
-			content: text,
-			error: null,
-		};
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), 120000);
+	if (signal) {
+		signal.addEventListener("abort", () => { clearTimeout(timer); controller.abort(signal.reason); }, { once: true });
+	}
+
+	try {
+		const res = await fetch("https://api.anthropic.com/v1/messages", {
+			method: "POST",
+			headers: {
+				"x-api-key": apiKey,
+				"anthropic-version": "2023-06-01",
+				"content-type": "application/json",
+			},
+			body: JSON.stringify({
+				model: "claude-haiku-4-5",
+				max_tokens: 4096,
+				messages: [{ role: "user", content }],
+			}),
+			signal: controller.signal,
+		});
+		clearTimeout(timer);
+		if (!res.ok) return null;
+		const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
+		return data.content?.filter(b => b.type === "text").map(b => b.text ?? "").join("") || null;
 	} catch {
+		clearTimeout(timer);
 		return null;
-	} finally {
-		if (fileName) deleteGeminiFile(fileName, apiKey);
 	}
 }
 
-async function uploadToFilesApi(
+async function tryAnthropicVideoFrames(
 	info: VideoFileInfo,
-	apiKey: string,
+	prompt: string,
 	signal?: AbortSignal,
-): Promise<{ name: string; uri: string }> {
-	const displayName = basename(info.absolutePath);
+): Promise<ExtractedContent | null> {
+	if (!isAnthropicWebAvailable()) return null;
 
-	const initRes = await fetch(`${UPLOAD_BASE}/files`, {
-		method: "POST",
-		headers: {
-			"x-goog-api-key": apiKey,
-			"X-Goog-Upload-Protocol": "resumable",
-			"X-Goog-Upload-Command": "start",
-			"X-Goog-Upload-Header-Content-Length": String(info.sizeBytes),
-			"X-Goog-Upload-Header-Content-Type": info.mimeType,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({ file: { display_name: displayName } }),
-		signal,
-	});
+	const durationResult = await getLocalVideoDuration(info.absolutePath);
+	const duration = typeof durationResult === "number" ? durationResult : 60;
+	const count = Math.min(6, Math.max(2, Math.floor(duration / 15)));
+	const timestamps = Array.from({ length: count }, (_, i) =>
+		Math.round((i / (count - 1)) * Math.min(duration, 300)),
+	);
 
-	if (!initRes.ok) {
-		const text = await initRes.text();
-		throw new Error(`File upload init failed: ${initRes.status} (${text.slice(0, 200)})`);
-	}
+	const results = await Promise.all(timestamps.map(async (t) => {
+		const frame = await extractVideoFrame(info.absolutePath, t);
+		if ("error" in frame) return null;
+		return { ...frame, timestamp: formatSeconds(t) } as VideoFrame;
+	}));
+	const frames = results.filter((f): f is VideoFrame => f !== null);
+	if (frames.length === 0) return null;
 
-	const uploadUrl = initRes.headers.get("x-goog-upload-url");
-	if (!uploadUrl) throw new Error("No upload URL in response headers");
+	const text = await queryAnthropicWithFrames(prompt, frames, signal);
+	if (!text) return null;
 
-	const fileData = await readFile(info.absolutePath);
-	const uploadRes = await fetch(uploadUrl, {
-		method: "PUT",
-		headers: {
-			"Content-Length": String(info.sizeBytes),
-			"X-Goog-Upload-Offset": "0",
-			"X-Goog-Upload-Command": "upload, finalize",
-		},
-		body: fileData,
-		signal,
-	});
-
-	if (!uploadRes.ok) {
-		const text = await uploadRes.text();
-		throw new Error(`File upload failed: ${uploadRes.status} (${text.slice(0, 200)})`);
-	}
-
-	const result = await uploadRes.json() as { file: { name: string; uri: string } };
-	return result.file;
-}
-
-async function pollFileState(
-	fileName: string,
-	apiKey: string,
-	signal?: AbortSignal,
-	timeoutMs: number = 120000,
-): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
-
-	while (Date.now() < deadline) {
-		if (signal?.aborted) throw new Error("Aborted");
-
-		const res = await fetch(`${API_BASE}/${fileName}?key=${apiKey}`, { signal });
-		if (!res.ok) throw new Error(`File state check failed: ${res.status}`);
-
-		const data = await res.json() as { state: string };
-		if (data.state === "ACTIVE") return;
-		if (data.state === "FAILED") throw new Error("File processing failed");
-
-		await new Promise(r => setTimeout(r, 5000));
-	}
-
-	throw new Error("File processing timed out");
-}
-
-function deleteGeminiFile(fileName: string, apiKey: string): void {
-	fetch(`${API_BASE}/${fileName}?key=${apiKey}`, { method: "DELETE" }).catch(() => {});
+	return {
+		url: info.absolutePath,
+		title: extractHeadingTitle(text) ?? basename(info.absolutePath, extname(info.absolutePath)),
+		content: text,
+		error: null,
+	};
 }
 
 function extractVideoTitle(text: string, filePath: string): string {
