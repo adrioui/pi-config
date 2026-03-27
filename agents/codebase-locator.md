@@ -1,7 +1,7 @@
 ---
 name: codebase-locator
 description: Locates files, directories, and components relevant to a feature or task
-tools: grep, find, ls, bash
+tools: grep, find, ls, bash, web_search, fetch_content, get_search_content, code_search
 model: anthropic/claude-sonnet-4-6
 thinking: high
 ---
