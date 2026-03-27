@@ -2,9 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { activityMonitor } from "./activity.js";
-import { isGeminiWebAvailable, queryWithCookies } from "./gemini-web.js";
-import { isGeminiApiAvailable, queryGeminiApiWithVideo } from "./gemini-api.js";
-import { searchWithPerplexity } from "./perplexity.js";
+import { isAnthropicWebAvailable } from "./anthropic-web.js";
+import { search } from "./search-router.js";
 import { extractHeadingTitle, type ExtractedContent, type FrameResult, type VideoFrame } from "./extract.js";
 import { formatSeconds, readExecError, isTimeoutError, trimErrorText, mapFfmpegError } from "./utils.js";
 
@@ -26,7 +25,7 @@ interface YouTubeConfig {
 	preferredModel: string;
 }
 
-const defaults: YouTubeConfig = { enabled: true, preferredModel: "gemini-3-flash-preview" };
+const defaults: YouTubeConfig = { enabled: true, preferredModel: "claude-haiku-4-5" };
 let cachedConfig: YouTubeConfig | null = null;
 
 function loadYouTubeConfig(): YouTubeConfig {
@@ -69,21 +68,15 @@ export async function extractYouTube(
 	url: string,
 	signal?: AbortSignal,
 	prompt?: string,
-	model?: string,
+	_model?: string,
 ): Promise<ExtractedContent | null> {
-	const config = loadYouTubeConfig();
 	const { videoId } = isYouTubeURL(url);
-	const canonicalUrl = videoId
-		? `https://www.youtube.com/watch?v=${videoId}`
-		: url;
 	const effectivePrompt = prompt ?? YOUTUBE_PROMPT;
-	const effectiveModel = model ?? config.preferredModel;
 
 	const activityId = activityMonitor.logStart({ type: "fetch", url: `youtube.com/${videoId ?? "video"}` });
 
-	const result = await tryGeminiWeb(canonicalUrl, effectivePrompt, effectiveModel, signal)
-		?? await tryGeminiApi(canonicalUrl, effectivePrompt, effectiveModel, signal)
-		?? await tryPerplexity(url, effectivePrompt, signal);
+	const result = await tryAnthropicFrames(url, videoId, effectivePrompt, signal)
+		?? await trySearchFallback(url, effectivePrompt, signal);
 
 	if (result) {
 		result.url = url;
@@ -189,65 +182,96 @@ export async function fetchYouTubeThumbnail(videoId: string): Promise<{ data: st
 	}
 }
 
-async function tryGeminiWeb(
-	url: string,
+async function queryAnthropicWithFrames(
 	prompt: string,
-	model: string,
+	frames: VideoFrame[],
 	signal?: AbortSignal,
-): Promise<ExtractedContent | null> {
-	try {
-		const cookies = await isGeminiWebAvailable();
-		if (!cookies) return null;
+): Promise<string | null> {
+	const apiKey = process.env.ANTHROPIC_API_KEY
+		|| (() => { try { return JSON.parse(readFileSync(CONFIG_PATH, "utf-8")).anthropicApiKey; } catch { return null; } })();
+	if (!apiKey) return null;
 
-		if (signal?.aborted) return null;
-
-		const text = await queryWithCookies(prompt, cookies, {
-			youtubeUrl: url,
-			model,
-			signal,
-			timeoutMs: 120000,
+	const content: Array<Record<string, unknown>> = [];
+	for (const frame of frames) {
+		content.push({
+			type: "text",
+			text: `Frame at ${frame.timestamp}:`,
 		});
+		content.push({
+			type: "image",
+			source: {
+				type: "base64",
+				media_type: frame.mimeType,
+				data: frame.data,
+			},
+		});
+	}
+	content.push({ type: "text", text: prompt });
 
-		return {
-			url,
-			title: extractHeadingTitle(text) ?? "YouTube Video",
-			content: text,
-			error: null,
-		};
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), 120000);
+	if (signal) {
+		signal.addEventListener("abort", () => { clearTimeout(timer); controller.abort(signal.reason); }, { once: true });
+	}
+
+	try {
+		const res = await fetch("https://api.anthropic.com/v1/messages", {
+			method: "POST",
+			headers: {
+				"x-api-key": apiKey,
+				"anthropic-version": "2023-06-01",
+				"content-type": "application/json",
+			},
+			body: JSON.stringify({
+				model: "claude-haiku-4-5",
+				max_tokens: 4096,
+				messages: [{ role: "user", content }],
+			}),
+			signal: controller.signal,
+		});
+		clearTimeout(timer);
+		if (!res.ok) return null;
+		const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
+		return data.content?.filter(b => b.type === "text").map(b => b.text ?? "").join("") || null;
 	} catch {
+		clearTimeout(timer);
 		return null;
 	}
 }
 
-async function tryGeminiApi(
+async function tryAnthropicFrames(
 	url: string,
+	videoId: string | null,
 	prompt: string,
-	model: string,
 	signal?: AbortSignal,
 ): Promise<ExtractedContent | null> {
-	try {
-		if (!isGeminiApiAvailable()) return null;
+	if (!isAnthropicWebAvailable()) return null;
+	if (!videoId) return null;
 
-		if (signal?.aborted) return null;
+	const streamInfo = await getYouTubeStreamInfo(videoId);
+	if ("error" in streamInfo) return null;
 
-		const text = await queryGeminiApiWithVideo(prompt, url, {
-			model,
-			signal,
-			timeoutMs: 120000,
-		});
+	const duration = streamInfo.duration ?? 60;
+	const count = Math.min(6, Math.max(2, Math.floor(duration / 30)));
+	const timestamps = Array.from({ length: count }, (_, i) =>
+		Math.round((i / (count - 1)) * Math.min(duration, 600)),
+	);
 
-		return {
-			url,
-			title: extractHeadingTitle(text) ?? "YouTube Video",
-			content: text,
-			error: null,
-		};
-	} catch {
-		return null;
-	}
+	const { frames } = await extractYouTubeFrames(videoId, timestamps, streamInfo);
+	if (frames.length === 0) return null;
+
+	const text = await queryAnthropicWithFrames(prompt, frames, signal);
+	if (!text) return null;
+
+	return {
+		url,
+		title: extractHeadingTitle(text) ?? "YouTube Video",
+		content: text,
+		error: null,
+	};
 }
 
-async function tryPerplexity(
+async function trySearchFallback(
 	url: string,
 	prompt: string,
 	signal?: AbortSignal,
@@ -255,24 +279,20 @@ async function tryPerplexity(
 	try {
 		if (signal?.aborted) return null;
 
-		const perplexityQuery = prompt === YOUTUBE_PROMPT
+		const searchQuery = prompt === YOUTUBE_PROMPT
 			? `Summarize this YouTube video in detail: ${url}`
 			: `${prompt} YouTube video: ${url}`;
 
-		const { answer } = await searchWithPerplexity(
-			perplexityQuery,
-			{ signal },
-		);
-
+		const { answer } = await search(searchQuery, { signal });
 		if (!answer) return null;
 
 		const content =
-			`# Video Summary (via Perplexity)\n\n${answer}\n\n` +
-			`*Full video understanding requires Gemini access. Set GEMINI_API_KEY or sign into Google in Chrome.*`;
+			`# Video Summary (via web search)\n\n${answer}\n\n` +
+			`*Full video understanding requires ANTHROPIC_API_KEY + yt-dlp + ffmpeg for frame extraction.*`;
 
 		return {
 			url,
-			title: "Video Summary (via Perplexity)",
+			title: "Video Summary (via web search)",
 			content,
 			error: null,
 		};
