@@ -10,6 +10,7 @@ import { extractGitHub } from "./github-extract.js";
 import { isYouTubeURL, isYouTubeEnabled, extractYouTube, extractYouTubeFrame, extractYouTubeFrames, getYouTubeStreamInfo } from "./youtube-extract.js";
 import { extractWithUrlContext, extractWithGeminiWeb } from "./gemini-url-context.js";
 import { isVideoFile, extractVideo, extractVideoFrame, getLocalVideoDuration } from "./video-extract.js";
+import { fetchWithAnthropicWeb, isAnthropicWebAvailable } from "./anthropic-web.js";
 import { formatSeconds } from "./utils.js";
 
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -376,6 +377,9 @@ export async function extractContent(
 	if (!httpResult.error || signal?.aborted) return httpResult;
 	if (NON_RECOVERABLE_ERRORS.some(prefix => httpResult.error!.startsWith(prefix))) return httpResult;
 
+	const anthropicResult = await fetchWithAnthropicWeb(url, signal, options?.prompt);
+	if (anthropicResult) return anthropicResult;
+
 	const jinaResult = await extractWithJinaReader(url, signal);
 	if (jinaResult) return jinaResult;
 
@@ -388,9 +392,12 @@ export async function extractContent(
 		httpResult.error,
 		"",
 		"Fallback options:",
-		"  \u2022 Set GEMINI_API_KEY in ~/.pi/web-search.json",
-		"  \u2022 Sign into gemini.google.com in Chrome",
-		"  \u2022 Use web_search to find content about this topic",
+		...(isAnthropicWebAvailable()
+			? ["  • Anthropic web_fetch fallback was attempted but did not succeed"]
+			: ["  • Set ANTHROPIC_API_KEY in ~/.pi/web-search.json for Claude-style web_fetch fallback"]),
+		"  • Set GEMINI_API_KEY in ~/.pi/web-search.json",
+		"  • Sign into gemini.google.com in Chrome",
+		"  • Use web_search to find content about this topic",
 	].join("\n");
 	return { ...httpResult, error: guidance };
 }

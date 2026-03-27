@@ -24,9 +24,9 @@ import { randomUUID } from "node:crypto";
 import { platform, homedir } from "node:os";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { isPerplexityAvailable } from "./perplexity.js";
-import { isGeminiApiAvailable } from "./gemini-api.js";
 import { getActiveGoogleEmail, isGeminiWebAvailable } from "./gemini-web.js";
+import { isExaAvailable } from "./exa-search.js";
+import { isAnthropicWebAvailable } from "./anthropic-web.js";
 import {
 	condenseSearchResults,
 	postProcessCondensed,
@@ -82,19 +82,22 @@ function formatShortcut(key: string): string {
 
 function resolveProvider(
 	requested: string | undefined,
-	available: { perplexity: boolean; gemini: boolean },
-): string {
-	const provider = requested || loadConfig().provider || "auto";
+	available: { exa: boolean; anthropic: boolean },
+): SearchProvider | "auto" {
+	const rawProvider = requested || loadConfig().provider || "auto";
+	const provider: SearchProvider | "auto" = rawProvider === "exa" || rawProvider === "anthropic" || rawProvider === "auto"
+		? rawProvider
+		: "auto";
 	if (provider === "auto" || provider === "") {
-		if (available.perplexity) return "perplexity";
-		if (available.gemini) return "gemini";
-		return "perplexity";
+		if (available.exa) return "exa";
+		if (available.anthropic) return "anthropic";
+		return "auto";
 	}
-	if (provider === "perplexity" && !available.perplexity) {
-		return available.gemini ? "gemini" : "perplexity";
+	if (provider === "exa" && !available.exa) {
+		return available.anthropic ? "anthropic" : "exa";
 	}
-	if (provider === "gemini" && !available.gemini) {
-		return available.perplexity ? "perplexity" : "gemini";
+	if (provider === "anthropic" && !available.anthropic) {
+		return available.exa ? "exa" : "anthropic";
 	}
 	return provider;
 }
@@ -114,8 +117,9 @@ interface PendingCurate {
 	numResults?: number;
 	recencyFilter?: "day" | "week" | "month" | "year";
 	domainFilter?: string[];
-	availableProviders: { perplexity: boolean; gemini: boolean };
-	defaultProvider: string;
+	availableProviders: { exa: boolean; anthropic: boolean };
+	defaultProvider: SearchProvider | "auto";
+	currentProvider: SearchProvider | "auto";
 	onUpdate: ((update: { content: Array<{ type: string; text: string }>; details?: Record<string, unknown> }) => void) | undefined;
 	signal: AbortSignal | undefined;
 	timer?: ReturnType<typeof setTimeout>;
@@ -472,10 +476,11 @@ export default function (pi: ExtensionAPI) {
 					},
 					onProviderChange(provider) {
 						saveConfig({ provider });
+						pc.currentProvider = provider as SearchProvider;
 					},
 					async onAddSearch(query, queryIndex) {
 						const { answer, results } = await search(query, {
-							provider: pc.defaultProvider as SearchProvider | undefined,
+							provider: pc.currentProvider === "auto" ? undefined : pc.currentProvider,
 							numResults: pc.numResults,
 							recencyFilter: pc.recencyFilter,
 							domainFilter: pc.domainFilter,
@@ -578,7 +583,8 @@ export default function (pi: ExtensionAPI) {
 		name: "web_search",
 		label: "Web Search",
 		description:
-			`Search the web using Perplexity AI or Gemini. Returns an AI-synthesized answer with source citations. For comprehensive research, prefer queries (plural) with 2-4 varied angles over a single query — each query gets its own synthesized answer, so varying phrasing and scope gives much broader coverage. When includeContent is true, full page content is fetched in the background. Multi-query searches include a brief review window where the user can press ${curateLabel} to curate results in the browser before they're sent. Set curate to false to skip this. Provider auto-selects: Perplexity if configured, else Gemini API (needs key), else Gemini Web (needs a supported Chromium-based browser login).`,
+			`Search the web using Exa or Anthropic's public web search tools. Returns an AI-synthesized answer with source citations. For comprehensive research, prefer queries (plural) with 2-4 varied angles over a single query — each query gets its own synthesized answer, so varying phrasing and scope gives much broader coverage. When includeContent is true, full page content is fetched in the background. Multi-query searches include a brief review window where the user can press ${curateLabel} to curate results in the browser before they're sent. Set curate to false to skip this. Provider auto-selects: Exa if configured, else Anthropic web search if ANTHROPIC_API_KEY is available.`,
+
 		parameters: Type.Object({
 			query: Type.Optional(Type.String({ description: "Single search query. For research tasks, prefer 'queries' with multiple varied angles instead." })),
 			queries: Type.Optional(Type.Array(Type.String(), { description: "Multiple queries searched in sequence, each returning its own synthesized answer. Prefer this for research — vary phrasing, scope, and angle across 2-4 queries to maximize coverage. Good: ['React vs Vue performance benchmarks 2026', 'React vs Vue developer experience comparison', 'React ecosystem size vs Vue ecosystem']. Bad: ['React vs Vue', 'React vs Vue comparison', 'React vs Vue review'] (too similar, redundant results)." })),
@@ -589,7 +595,7 @@ export default function (pi: ExtensionAPI) {
 			),
 			domainFilter: Type.Optional(Type.Array(Type.String(), { description: "Limit to domains (prefix with - to exclude)" })),
 			provider: Type.Optional(
-				StringEnum(["auto", "perplexity", "gemini", "exa"] as const, { description: "Search provider (default: auto)" }),
+				StringEnum(["auto", "exa", "anthropic"] as const, { description: "Search provider (default: auto)" }),
 			),
 			curate: Type.Optional(Type.Boolean({
 				description: `Hold results for review after searching. The user can press ${curateLabel} to open an interactive review page in the browser, or wait for the countdown to auto-send all results. Enabled by default for multi-query searches. Set to false to skip the review window.`,
@@ -614,18 +620,18 @@ export default function (pi: ExtensionAPI) {
 			if (shouldCurate) {
 				closeCurator();
 
-				const { promise, resolve: resolvePromise } = Promise.withResolvers<unknown>();
+				let resolvePromise!: (value: unknown) => void;
+				const promise = new Promise<unknown>(resolve => { resolvePromise = resolve; });
 				const includeContent = params.includeContent ?? false;
 				const searchResults = new Map<number, QueryResultData>();
 				const allUrls: string[] = [];
 				let cancelled = false;
 
-				const pplxAvail = isPerplexityAvailable();
-				const geminiApiAvail = isGeminiApiAvailable();
-				const geminiWebAvail = await isGeminiWebAvailable();
+				const exaAvail = isExaAvailable();
+				const anthropicAvail = isAnthropicWebAvailable();
 				const availableProviders = {
-					perplexity: pplxAvail,
-					gemini: geminiApiAvail || !!geminiWebAvail,
+					exa: exaAvail,
+					anthropic: anthropicAvail,
 				};
 				const defaultProvider = resolveProvider(params.provider, availableProviders);
 				const curateConfig = loadConfig();
@@ -642,6 +648,7 @@ export default function (pi: ExtensionAPI) {
 					domainFilter: params.domainFilter,
 					availableProviders,
 					defaultProvider,
+					currentProvider: defaultProvider,
 					onUpdate: onUpdate as PendingCurate["onUpdate"],
 					signal,
 					finish: () => {},
@@ -683,7 +690,7 @@ export default function (pi: ExtensionAPI) {
 					});
 					try {
 						const { answer, results } = await search(queryList[qi], {
-							provider: defaultProvider as SearchProvider | undefined,
+							provider: defaultProvider === "auto" ? undefined : defaultProvider,
 							numResults: params.numResults,
 							recencyFilter: params.recencyFilter,
 							domainFilter: params.domainFilter,
@@ -811,7 +818,8 @@ export default function (pi: ExtensionAPI) {
 
 			const searchResults: QueryResultData[] = [];
 			const allUrls: string[] = [];
-			const resolvedProvider = params.provider || loadConfig().provider || undefined;
+			const configuredProvider = params.provider || loadConfig().provider || "auto";
+			const resolvedProvider = configuredProvider === "auto" ? undefined : configuredProvider;
 
 			for (let i = 0; i < queryList.length; i++) {
 				const query = queryList[i];
@@ -1493,19 +1501,19 @@ export default function (pi: ExtensionAPI) {
 			if (tokens !== 5000) {
 				lines.push(theme.fg("muted", `  tokens: ${tokens}`));
 			}
-			// Return a Text component or string
-			return lines.join("\n");
+			return new Text(lines.join("\n"), 0, 0);
 		},
 		renderResult(result: any, { expanded }: { expanded: boolean; isPartial: boolean }, theme: any) {
 			const details = result.details || {};
 			if (!expanded) {
-				return details.hasContent
+				const status = details.hasContent
 					? theme.fg("success", `code context for "${details.query}"`)
 					: theme.fg("warning", `no results for "${details.query}"`);
+				return new Text(status, 0, 0);
 			}
 			const text = result.content?.[0]?.text || "";
 			const preview = text.length > 200 ? text.slice(0, 200) + "..." : text;
-			return preview;
+			return new Text(preview, 0, 0);
 		},
 	});
 
@@ -1516,14 +1524,14 @@ export default function (pi: ExtensionAPI) {
 			const sessionToken = randomUUID();
 			const queries = args.trim() ? args.trim().split(/\s*,\s*/) : [];
 
-			const pplxAvail = isPerplexityAvailable();
-			const geminiApiAvail = isGeminiApiAvailable();
-			const geminiWebAvail = await isGeminiWebAvailable();
+			const exaAvail = isExaAvailable();
+			const anthropicAvail = isAnthropicWebAvailable();
 			const availableProviders = {
-				perplexity: pplxAvail,
-				gemini: geminiApiAvail || !!geminiWebAvail,
+				exa: exaAvail,
+				anthropic: anthropicAvail,
 			};
 			const defaultProvider = resolveProvider(undefined, availableProviders);
+			let currentProvider: SearchProvider | "auto" = defaultProvider;
 
 			ctx.ui.notify("Opening web search curator...", "info");
 
@@ -1573,10 +1581,13 @@ export default function (pi: ExtensionAPI) {
 							if (reason === "timeout") sendResults();
 							closeCurator();
 						},
-						onProviderChange(provider) { saveConfig({ provider }); },
+						onProviderChange(provider) {
+							saveConfig({ provider });
+							currentProvider = provider as SearchProvider;
+						},
 						async onAddSearch(query, queryIndex) {
 							const { answer, results } = await search(query, {
-								provider: defaultProvider as SearchProvider | undefined,
+								provider: currentProvider === "auto" ? undefined : currentProvider,
 								signal: searchAbort.signal,
 							});
 							collected.set(queryIndex, { query, answer, results, error: null });
@@ -1597,7 +1608,7 @@ export default function (pi: ExtensionAPI) {
 							if (aborted) break;
 							try {
 								const { answer, results } = await search(queries[qi], {
-									provider: defaultProvider as SearchProvider | undefined,
+									provider: currentProvider === "auto" ? undefined : currentProvider,
 									signal: searchAbort.signal,
 								});
 								if (aborted) break;

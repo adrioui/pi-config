@@ -145,7 +145,7 @@ export function parseMcpResponse(responseText: string): { answer: string; result
  * The endpoint streams `data: <json>` lines; we collect them all and pick the
  * first one that carries a `result` payload.
  */
-function parseSseBody(raw: string): Record<string, unknown> | null {
+export function parseSseBody(raw: string): Record<string, unknown> | null {
 	const lines = raw.split(/\r?\n/);
 	for (const line of lines) {
 		const trimmed = line.trim();

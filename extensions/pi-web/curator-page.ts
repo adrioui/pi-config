@@ -14,12 +14,12 @@ function safeInlineJSON(data: unknown): string {
 }
 
 function buildProviderOptions(
-	available: { perplexity: boolean; gemini: boolean },
+	available: { exa: boolean; anthropic: boolean },
 	selected: string,
 ): string {
 	const options = [
-		{ value: "perplexity", label: "Perplexity", disabled: !available.perplexity },
-		{ value: "gemini", label: "Gemini", disabled: !available.gemini },
+		{ value: "exa", label: "Exa", disabled: !available.exa },
+		{ value: "anthropic", label: "Claude", disabled: !available.anthropic },
 	];
 
 	return options
@@ -31,7 +31,7 @@ export function generateCuratorPage(
 	queries: string[],
 	sessionToken: string,
 	timeout: number,
-	availableProviders: { perplexity: boolean; gemini: boolean },
+	availableProviders: { exa: boolean; anthropic: boolean },
 	defaultProvider: string,
 ): string {
 	const providerOptionsHtml = buildProviderOptions(availableProviders, defaultProvider);

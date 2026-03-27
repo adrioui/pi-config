@@ -11,7 +11,7 @@ export interface CuratorServerOptions {
 	queries: string[];
 	sessionToken: string;
 	timeout: number;
-	availableProviders: { perplexity: boolean; gemini: boolean };
+	availableProviders: { exa: boolean; anthropic: boolean };
 	defaultProvider: string;
 }
 

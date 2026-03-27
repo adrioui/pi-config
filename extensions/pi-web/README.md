@@ -1,54 +1,60 @@
-# opencode-web — Pi Extension
+# pi-web — Pi Extension
 
-Enhanced web search and content fetching for pi, incorporating patterns from [opencode](https://github.com/anomalyco/opencode).
+Enhanced web search and content fetching for pi, combining the strongest patterns from [opencode](https://github.com/anomalyco/opencode) and [Claude Code](https://github.com/anthropics/claude-code).
 
 ## What Changed from pi-web-access
 
-This extension is a fork of `pi-web-access@0.10.3` with the following enhancements reverse-engineered from opencode:
+This extension is a fork of `pi-web-access@0.10.3` with the following enhancements:
 
 ### 1. Exa AI Search Provider (`exa-search.ts`)
-- **New provider:** Exa AI MCP-based web search via `https://mcp.exa.ai/mcp`
-- **JSON-RPC 2.0:** Uses opencode's exact MCP protocol (`tools/call` method, `web_search_exa` tool)
+- **Primary search provider:** Exa AI MCP-based web search via `https://mcp.exa.ai/mcp`
+- **JSON-RPC 2.0:** Uses opencode's MCP pattern (`tools/call`, `web_search_exa`)
 - **SSE parsing:** Handles Server-Sent Events responses from the MCP endpoint
 - **Live crawling:** Supports `fallback` and `preferred` crawl modes
 - **Search types:** `auto`, `fast`, `deep` search modes
-- **Priority:** Exa is tried first in auto-detection before Perplexity and Gemini
-- **Auth:** Optional `EXA_API_KEY` env var or `exaApiKey` in `~/.pi/web-search.json`
+- **Auth:** `EXA_API_KEY` env var or `exaApiKey` in `~/.pi/web-search.json`
 
-### 2. Code Search Tool (`code-search.ts`)
+### 2. Claude Code–style Anthropic Fallback (`anthropic-web.ts`)
+- **Fallback search provider:** Anthropic public `web_search` server tool via the Messages API
+- **Fallback fetch provider:** Anthropic public `web_fetch` server tool for URL extraction fallback
+- **Claude Code pattern:** uses Anthropic server-side web tools rather than client-side scraping when fallback is needed
+- **Pause-turn handling:** continues Anthropic server-tool loops when `stop_reason === "pause_turn"`
+- **Auth:** `ANTHROPIC_API_KEY` env var or `anthropicApiKey` in `~/.pi/web-search.json`
+
+### 3. Code Search Tool (`code-search.ts`)
 - **New tool:** `code_search` — Search for code examples, API docs, library references
-- **Exa AI MCP:** Uses `get_code_context_exa` tool for code-focused results
+- **Exa AI MCP:** Uses `get_code_context_exa` for code-focused results
 - **Token control:** 1,000–50,000 tokens (default: 5,000)
 - **Timeout:** 30-second timeout with abort signal support
 
-### 3. Cloudflare Bot Detection Retry (`extract.ts`)
-- **Auto-retry:** When fetching content, if Cloudflare returns 403 with `cf-mitigated: challenge`, automatically retries with simplified User-Agent
-- **Format-aware headers:** Accept header now includes `text/markdown` and `text/plain` quality preferences
-
-### 4. Provider Selection Enhancement (`gemini-search.ts`)
-- **New provider option:** `"exa"` added to the `SearchProvider` type
-- **Auto-detection priority:** Exa → Perplexity → Gemini API → Gemini Web
-- **Parameter:** `provider: "exa"` now available in `web_search` tool
+### 4. Claude Code / opencode Fetch Improvements (`extract.ts`)
+- **Claude-User User-Agent:** identifies honestly for robots.txt compliance
+- **UA fallback chain:** Claude-User → simplified retry → browser UA
+- **Cloudflare retry:** if `cf-mitigated: challenge` is returned, retry automatically
+- **Format-aware headers:** Accept header prefers `text/markdown` and `text/plain`
+- **Binary save-to-disk:** PDFs, Office docs, and audio can be saved with correct extensions
+- **Anthropic web_fetch fallback:** server-side URL fetch fallback for pages that block normal extraction
 
 ## Tools Provided
 
 | Tool | Description |
 |------|-------------|
-| `web_search` | Search the web (Exa AI, Perplexity, or Gemini) |
-| `fetch_content` | Fetch URLs with intelligent content extraction |
+| `web_search` | Search the web using Exa first, then Anthropic web search as fallback |
+| `fetch_content` | Fetch URLs with intelligent content extraction and Anthropic fallback |
 | `get_search_content` | Retrieve full content from previous searches |
 | `code_search` | Search code examples and API docs via Exa AI |
 
 ## Configuration
 
-### ~/.pi/web-search.json
+### `~/.pi/web-search.json`
 
 ```json
 {
   "exaApiKey": "your-exa-api-key",
-  "perplexityApiKey": "pplx-...",
-  "geminiApiKey": "AIza...",
-  "provider": "auto"
+  "anthropicApiKey": "your-anthropic-api-key",
+  "provider": "auto",
+  "anthropicSearchModel": "claude-haiku-4-5",
+  "anthropicFetchModel": "claude-haiku-4-5"
 }
 ```
 
@@ -56,24 +62,29 @@ This extension is a fork of `pi-web-access@0.10.3` with the following enhancemen
 
 | Variable | Description |
 |----------|-------------|
-| `EXA_API_KEY` | Exa AI API key (highest priority) |
-| `PERPLEXITY_API_KEY` | Perplexity API key |
-| `GEMINI_API_KEY` | Google Gemini API key |
+| `EXA_API_KEY` | Exa AI API key |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude-style web search/fetch |
+| `HTTPS_PROXY` / `HTTP_PROXY` | Proxy settings for fetch operations |
 
-### Provider Priority (auto mode)
+### Search Provider Priority (`web_search`)
 
-1. **Exa AI** — if `EXA_API_KEY` or `exaApiKey` configured
-2. **Perplexity** — if `PERPLEXITY_API_KEY` or `perplexityApiKey` configured
-3. **Gemini API** — if `GEMINI_API_KEY` or `geminiApiKey` configured
-4. **Gemini Web** — if signed into gemini.google.com in Chrome
+1. **Exa AI** — primary provider if `EXA_API_KEY` / `exaApiKey` is configured
+2. **Anthropic web search** — fallback provider if `ANTHROPIC_API_KEY` / `anthropicApiKey` is configured
+
+### Notes
+
+- `web_search` no longer uses Perplexity or Gemini.
+- Some `fetch_content` features may still use Gemini-based paths for video and URL-context extraction. Those were left intact because they are unrelated to the web-search provider chain.
+- Anthropic web search requires org-level enablement in Anthropic Console privacy settings.
 
 ## Installation
 
-This extension replaces `npm:pi-web-access`. The original package was removed from `~/.pi/agent/settings.json` and this extension lives at `~/.pi/agent/extensions/opencode-web/`.
+This extension replaces `npm:pi-web-access`. The original package was removed from `~/.pi/agent/settings.json` and this extension lives at `~/.pi/agent/extensions/pi-web/`.
 
-To revert: remove this directory and add `"npm:pi-web-access"` back to settings.json packages array.
+To revert: remove this directory and add `"npm:pi-web-access"` back to `settings.json`.
 
 ## Credits
 
-- Original: [pi-web-access](https://www.npmjs.com/package/pi-web-access) by [@mariozechner](https://github.com/badlogic)
-- Enhancements: Reverse-engineered from [opencode](https://github.com/anomalyco/opencode) by [@anomalyco](https://github.com/anomalyco)
+- Original: [pi-web-access](https://www.npmjs.com/package/pi-web-access)
+- Primary search/provider patterns: [opencode](https://github.com/anomalyco/opencode)
+- Server-side web tool behavior and fallback inspiration: [Claude Code](https://github.com/anthropics/claude-code)
