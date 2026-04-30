@@ -3,7 +3,7 @@ description: Generate a visual HTML diff review for a ref, PR, commit, or workin
 ---
 Generate a visual HTML diff review.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@

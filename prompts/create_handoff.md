@@ -3,7 +3,7 @@ description: Create a concise but complete handoff document for resuming work la
 ---
 Create a handoff document for the current work.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@

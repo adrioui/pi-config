@@ -3,7 +3,7 @@ description: Create a detailed implementation plan from code, docs, and ticket c
 ---
 Create a detailed implementation plan.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@
@@ -23,7 +23,7 @@ Workflow:
    - `codebase-analyzer` for understanding the live implementation
    - `codebase-pattern-finder` for existing examples to follow
    - `thoughts-locator` / `thoughts-analyzer` for prior decisions
-   - `deepwiki_ask` / `deepwiki_deep_research` for repo-scale questions
+   - targeted repo reads plus `codebase-locator`/`codebase-analyzer` for repo-scale questions
 5. Ask follow-up questions only when code and docs cannot answer them.
 6. Produce a phased plan with:
    - overview

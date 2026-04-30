@@ -3,7 +3,7 @@ description: Draft and apply a PR description directly when the repository suppo
 ---
 Create and apply a PR description.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@

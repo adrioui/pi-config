@@ -3,7 +3,7 @@ description: Research a task and draft an implementation plan in one pass
 ---
 Run the inline research-then-plan workflow.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@

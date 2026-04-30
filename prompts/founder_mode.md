@@ -3,7 +3,7 @@ description: Turn an experimental commit into a ticketed branch and PR workflow 
 ---
 Guide the user through promoting an experimental commit into a proper branch and PR workflow.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@

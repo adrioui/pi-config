@@ -3,7 +3,7 @@ description: Verify a markdown or HTML document against the actual codebase and 
 ---
 Fact-check a document against the codebase and git history.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@

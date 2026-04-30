@@ -3,7 +3,7 @@ description: Investigate an issue in read-only mode using logs, git state, files
 ---
 Investigate a problem in read-only mode.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@
@@ -18,7 +18,7 @@ Workflow:
    - config or state files
    - database files via CLI tools when available
    - relevant code paths
-4. Use local agents or DeepWiki only when they will reduce ambiguity.
+4. Use local agents or targeted repo reads only when they will reduce ambiguity.
 5. Produce a focused debug report with:
    - problem framing
    - evidence found

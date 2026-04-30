@@ -3,7 +3,7 @@ description: Research how the codebase works today and optionally save a structu
 ---
 Research the codebase and document how it works today.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@
@@ -19,7 +19,7 @@ Workflow:
    - `codebase-analyzer` for implementation details
    - `codebase-pattern-finder` for analogous patterns
    - `thoughts-locator` / `thoughts-analyzer` for historical context
-   - `deepwiki_ask` / `deepwiki_deep_research` for repo-scale analysis
+   - targeted repo reads plus `codebase-locator`/`codebase-analyzer` for repo-scale analysis
 5. Validate the highest-signal claims yourself with direct file reads or targeted commands.
 6. Use web research only when the user explicitly wants external sources or external docs are essential.
 7. Produce a concise answer plus detailed findings with file paths and line ranges.

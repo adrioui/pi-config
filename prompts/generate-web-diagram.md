@@ -3,7 +3,7 @@ description: Generate a self-contained HTML diagram or architecture explainer an
 ---
 Generate a beautiful standalone HTML diagram.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@

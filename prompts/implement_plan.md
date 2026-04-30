@@ -16,7 +16,7 @@ If no plan path is provided, ask for one and stop.
 2. **Read files fully**—never use limit/offset parameters; you need complete context.
 3. Detect what is already complete from plan checkboxes or existing changes.
 4. Think deeply about how the pieces fit together before writing any code.
-5. Use local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+5. Use local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 ## Implementation
 

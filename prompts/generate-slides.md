@@ -3,7 +3,7 @@ description: Generate a self-contained HTML slide deck for the requested topic a
 ---
 Generate a slide deck as a self-contained HTML page.
 
-Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, DeepWiki, or web tools when they help.
+Use the local prompts, agents, and tools in this workspace. Skip any Linear-specific workflow. Reach for `subagent`, local repo reads, or web tools when they help.
 
 
 Arguments: $@
