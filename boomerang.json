@@ -1,4 +1,4 @@
 {
-  "toolEnabled": true,
-  "toolGuidance": null
+  "toolEnabled": false,
+  "toolGuidance": "Use the /boomerang command directly for broad, multi-step tasks that will read many files or URLs, perform repeated web_search/fetch_content/code_search calls, or otherwise create long context. The agent-callable boomerang tool is disabled because this Pi runtime cannot queue tool-initiated boomerang tasks reliably. Do not use boomerang for simple one-shot lookups, short Q&A, or tiny edits."
 }
