@@ -23,7 +23,7 @@ Before doing anything, classify the request to pick the right research strategy.
 
 | Type | Trigger | Primary Approach |
 |------|---------|-----------------|
-| **Conceptual** | "How do I use X?", "Best practice for Y?" | web_search + fetch_content (README/docs) |
+| **Conceptual** | "How do I use X?", "Best practice for Y?" | objective-first web_search + fetch_content (README/docs) |
 | **Implementation** | "How does X implement Y?", "Show me the source" | fetch_content (clone) + code search |
 | **Context/History** | "Why was this changed?", "History of X?" | git log + git blame + issue/PR search |
 | **Comprehensive** | Complex or ambiguous requests, "deep dive" | All of the above |
@@ -34,8 +34,8 @@ Before doing anything, classify the request to pick the right research strategy.
 
 Batch these in one turn:
 
-1. **web_search**: `"library-name topic"` for recent articles and discussions (Exa AI or Anthropic fallback)
-2. **fetch_content**: the library's GitHub repo URL to clone and check README, docs, or examples
+1. **web_search**: use one `objective` plus optional `search_queries` for recent articles and discussions
+2. **fetch_content**: pass the repo/docs URL, and add the same `objective` if you want relevant excerpts instead of the full page
 
 Synthesize web results + repo docs. Cite official documentation and link to relevant source files.
 
@@ -49,7 +49,7 @@ The core workflow -- clone, find, permalink:
 4. Get the commit SHA: `cd /tmp/pi-github-repos/owner/repo && git rev-parse HEAD`
 5. Construct permalink: `https://github.com/owner/repo/blob/<sha>/path/to/file#L10-L20`
 
-Batch the initial calls: fetch_content (clone) + web_search (recent discussions) in one turn. Then dig into the clone with grep/read once it's available.
+Batch the initial calls: fetch_content (clone) + objective-first web_search (recent discussions) in one turn. Then dig into the clone with grep/read once it's available.
 
 ### Context/History Questions
 
@@ -92,8 +92,8 @@ gh api repos/owner/repo/releases --jq '.[0:5] | .[].tag_name'
 
 Combine everything. Batch these in one turn:
 
-1. **web_search**: recent articles and discussions
-2. **fetch_content**: clone the repo (or multiple repos if comparing)
+1. **web_search**: one research objective plus optional `search_queries` for recent articles and discussions
+2. **fetch_content**: clone the repo (or multiple repos if comparing), optionally with the same `objective` for relevant excerpts
 3. **bash**: `gh search issues "keyword" --repo owner/repo --limit 10 & gh search prs "keyword" --repo owner/repo --state merged --limit 10 & wait`
 
 Then dig into the clone with grep, read, git blame, git log as needed.
@@ -182,13 +182,14 @@ The `prompt` parameter only applies to video content (YouTube URLs and local vid
 | Repo too large to clone | fetch_content returns an API-only view automatically; use that or add `forceClone: true` |
 | File not found in clone | Branch name with slashes may have misresolved; list the repo tree and navigate manually |
 | Uncertain about implementation | State your uncertainty explicitly, propose a hypothesis, show what evidence you did find |
-| Video extraction fails | Ensure `ANTHROPIC_API_KEY` is set; video extraction uses Anthropic-based tools when available |
-| Page returns 403/bot block | Anthropic `web_fetch` + Jina Reader fallback triggers automatically; ensure `ANTHROPIC_API_KEY` is set |
-| web_search fails | Check provider config; ensure `EXA_API_KEY` (primary) or `ANTHROPIC_API_KEY` (fallback) is set |
+| Video extraction fails | Use `fetch_content` for page text, or use local shell/video tools for frame extraction |
+| Page returns 403/bot block | Jina Reader fallback triggers automatically; if that fails, search for another source |
+| web_search fails | Retry with a narrower objective or more specific `search_queries` |
 
 ## Guidelines
 
-- Vary search queries when running multiple searches -- different angles, not the same pattern repeated
+- Put the main goal, source preference, and freshness guidance into `objective`
+- Use `search_queries` as focused boosts -- different angles, not redundant rewrites of the same objective
 - Prefer recent sources; filter out outdated results when they conflict with newer information
 - For version-specific questions, clone the tagged version: `fetch_content("https://github.com/owner/repo/tree/v1.0.0")`
 - When the repo is already cloned from a previous fetch_content call, reuse it -- check the path before cloning again

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "index.ts",
+    "search.ts",
+    "search-providers.ts",
+    "content-fetch.ts",
+    "store.ts",
+    "types.ts",
+    "format.ts",
+    "rsc-extract.ts",
+    "shims.d.ts"
+  ]
+}
