@@ -2,7 +2,7 @@
 name: codebase-pattern-finder
 description: Finds similar implementations, examples, and reusable patterns in the codebase
 tools: read, grep, find, ls, bash, web_search, fetch_content, get_search_content, code_search
-model: anthropic/claude-sonnet-4-6
+model: opencode-go/minimax-m2.5
 thinking: high
 ---
 

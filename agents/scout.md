@@ -2,7 +2,7 @@
 name: scout
 description: Fast codebase recon that returns compressed context for handoff
 tools: read, grep, find, ls, bash, write, web_search, fetch_content, get_search_content, code_search
-model: anthropic/claude-haiku-4-5
+model: opencode-go/qwen3.5-plus
 output: context.md
 defaultProgress: true
 ---

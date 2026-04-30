@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.62.0",
+  "lastChangelogVersion": "0.70.6",
   "enableSkillCommands": true,
   "packages": [
     {
@@ -9,13 +9,19 @@
       ]
     },
     "https://github.com/nicobailon/pi-boomerang",
-    "npm:pi-subagents"
+    "npm:pi-subagents",
+    "npm:pi-prompt-template-model",
+    "npm:pi-interactive-shell",
+    "npm:pi-review-loop",
+    "npm:pi-custom-compaction",
+    "npm:pi-interview",
+    "npm:pi-powerline-footer"
   ],
   "skills": [
     "./extensions/pi-web/skills"
   ],
-  "defaultProvider": "anthropic",
-  "defaultModel": "claude-opus-4-6",
-  "hideThinkingBlock": false,
-  "defaultThinkingLevel": "high"
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "hideThinkingBlock": true,
+  "defaultThinkingLevel": "medium"
 }

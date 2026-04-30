@@ -2,7 +2,7 @@
 name: thoughts-analyzer
 description: Extracts high-value insights from thoughts documents
 tools: read, grep, find, ls, bash, web_search, fetch_content, get_search_content, code_search
-model: anthropic/claude-sonnet-4-6
+model: opencode-go/qwen3.6-plus
 thinking: high
 ---
 

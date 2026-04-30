@@ -2,7 +2,7 @@
 name: planner
 description: Creates implementation plans from context and requirements
 tools: read, grep, find, ls, write, web_search, fetch_content, get_search_content, code_search
-model: claude-opus-4-6
+model: opencode-go/minimax-m2.7
 thinking: high
 output: plan.md
 defaultReads: context.md

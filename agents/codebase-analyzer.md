@@ -2,7 +2,7 @@
 name: codebase-analyzer
 description: Analyzes codebase implementation details with precise file references
 tools: read, grep, find, ls, bash, web_search, fetch_content, get_search_content, code_search
-model: anthropic/claude-sonnet-4-6
+model: opencode-go/minimax-m2.5
 thinking: high
 ---
 
